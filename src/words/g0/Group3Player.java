@@ -112,14 +112,21 @@ public class Group3Player extends Player {
      */
     @Override
     public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
+
+        String word = returnWord();
+        if (word.length() >= 7){
+            return 0;
+        }
+
+
         if (vowels.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 5;
+            return 6;
         }
         if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 4;
+            return 5;
         }
         if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 3;
+            return 4;
         }
 
         //record the new information from the previous round ONLY (rest should already be cached)
