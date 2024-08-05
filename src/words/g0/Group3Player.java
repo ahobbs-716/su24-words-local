@@ -101,7 +101,7 @@ public class Group3Player extends Player {
         return playerCounts.get(playerID);
     }
 
-
+    // helper method that checks if a potential word contains all the letters that we currently have
     public static boolean containsAllLetters(String str, List<Character> letters) {
         for (char letter : letters) {
             if (str.indexOf(letter) == -1) {
@@ -110,6 +110,67 @@ public class Group3Player extends Player {
         }
         return true;
     }
+
+    // THIS checks if we have a valid word of 7 or more letters. at this point, stop betting.
+    // POTENTIAL IMPROVEMENT: if new letter adds to value of our existing word... than can bid.
+    public int sevens(){
+        return 0;
+    }
+
+    //if amount of letters  is over 4 => following bid strategy
+    // THIS: if we have 4 or more letters
+    //count all the 7 (or more) letter words CONTAINING the letters that we already have
+    //then, for all those long words ^, count how many have the new letter
+    // then, bid appropriately based on how much that letter will help (probability of it being in a longer water)
+
+    // TO DO: test these bids and thesholds => mitali just did it randomly
+    // POSSIBLE LIMITATION: can all but one of these letters work?
+    public int fours(Letter bidLetter){
+        int words = 0;
+        int words_with_new_let = 0;
+        for (Word w : wordlist) {
+            if (w.length >= 7){
+
+                if(containsAllLetters(w.toString(), myLetters)){
+                    words ++;
+                    if(w.toString().contains(String.valueOf(bidLetter.getCharacter()))){
+                        words_with_new_let ++;
+                    }
+
+                }
+            }
+        }
+        float prob = words_with_new_let / words;
+
+        if (prob > 0.7){
+            return 8;
+        }
+        if (prob > 0.5){
+            return 6;
+        }
+        if (prob > 0.25){
+            return 2;
+        }
+        return 0;
+    }
+
+    // if less than 4 letters aquired, do following bid strategy:
+    // if we do not have 4 letters, bid on letterswith following strat:
+    // we wnt vowels and easy constinents
+    //if we cant get them, make the other teams pay for them!
+    public int otherBid(Letter bidLetter){
+        if (vowels.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 6;
+        }
+        if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 5;
+        }
+        if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 4;
+        }
+        return 0;
+    }
+
 
     /**
      * @param bidLetter the Letter currently up for bidding on
@@ -123,72 +184,24 @@ public class Group3Player extends Player {
     @Override
     public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
 
-        // THIS checks if we have a valid word of 7 or more letters. at this point, stop betting.
-        // POTENTIAL IMPROVEMENT: if new letter adds to value of our existing word... than can bid.
-        String word = returnWord();
-        if (word.length() >= 7){
-            return 0;
-        }
-
-        // THIS: if we have 4 or more letters
-        //count all the 7 (or more) letter words CONTAINING the letters that we already have
-        //then, for all those long words ^, count how many have the new letter
-        // then, bid appropriately based on how much that letter will help (probability of it being in a longer water)
-        
-        // TO DO: test these bids and thesholds => mitali just did it randomly
-        // POSSIBLE LIMITATION: can all but one of these letters work?
-        if(myLetters.size() >= 4){
-            int words = 0;
-            int words_with_new_let = 0;
-            for (Word w : wordlist) {
-                if (w.length >= 7){
-
-                    if(containsAllLetters(w.toString(), myLetters)){
-                        words ++;
-                        if(w.toString().contains(String.valueOf(bidLetter.getCharacter()))){
-                            words_with_new_let ++;
-                        }
-
-                    }
-                }
-            }
-            float prob = words_with_new_let / words;
-
-            if (prob > 0.7){
-                return 8;
-            }
-            if (prob > 0.5){
-                return 6;
-            }
-            if (prob > 0.25){
-                return 2;
-            }
-            if (prob > 0.1){
-                return 0;
-            }
-
-
-        }
-
-
-    // if we do not have 4 letters, bid on letterswith following strat:
-        // we wnt vowels and easy constinents 
-        //if we cant get them, make the other teams pay for them!
-
-
-        if (vowels.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 6;
-        }
-        if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 5;
-        }
-        if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 4;
-        }
-
         //record the new information from the previous round ONLY (rest should already be cached)
         if (playerBidList.size() > 0) recordLetter(playerBidList.getLast().getTargetLetter(), playerBidList.getLast().getWinnerID());
 
-        return 0;
+
+        //if we have a valid word of length 7+ => see sevens for behavior
+        String word = returnWord();
+        if (word.length() >= 7){
+            return sevens();
+        }
+
+        // see explanation in fours() method for bid behavior when 4 or more letters
+        if(myLetters.size() >= 4){
+            return fours(bidLetter);
+        }
+
+
+        // if less than 4 letters aquired, do otherBid strategy
+        return otherBid(bidLetter);
+
     }
 }
