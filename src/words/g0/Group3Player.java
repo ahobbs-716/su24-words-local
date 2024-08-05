@@ -9,11 +9,21 @@ public class Group3Player extends Player {
     Map<Integer, Map<Letter, Integer>> playerCounts;             //format: Map <PlayerID <letter_type, num_letters_of_type>
     Map<Letter, Integer> absoluteCounts;                         //format: Map <Letter, num_instances_on_board>
     int totalPlayed;
+    ArrayList<String> vowels;
+    ArrayList<String> easyConst; // value of 4 or fewer
+    ArrayList<String> hardConst; // value of 5 or higher
 
     public Group3Player() {
         playerCounts = new HashMap<>();
         absoluteCounts = new HashMap<>();
         totalPlayed = 0;
+        vowels = new ArrayList<>(Arrays.asList("A", "E", "I", "O", "U"));
+        easyConst = new ArrayList<>(Arrays.asList(
+                "B", "C", "D", "F", "G", "H", "L", "M", "N", "P", "R", "S", "T", "V", "W", "Y"
+        ));
+        hardConst = new ArrayList<>(Arrays.asList("J", "K", "Q", "X", "Z"));
+
+
     }
 
     /**
@@ -102,6 +112,15 @@ public class Group3Player extends Player {
      */
     @Override
     public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
+        if (vowels.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 5;
+        }
+        if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 4;
+        }
+        if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))){
+            return 3;
+        }
 
         //record the new information from the previous round ONLY (rest should already be cached)
         if (playerBidList.size() > 0) recordLetter(playerBidList.getLast().getTargetLetter(), playerBidList.getLast().getWinnerID());
