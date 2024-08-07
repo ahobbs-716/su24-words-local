@@ -2,7 +2,11 @@ package words.g0;
 
 import words.core.*;
 
+import java.io.*;
 import java.util.*;
+import java.util.logging.Level;
+
+import static words.core.ScrabbleValues.getWordScore;
 
 
 public class Group3Player extends Player {
@@ -12,39 +16,70 @@ public class Group3Player extends Player {
     ArrayList<String> vowels;
     ArrayList<String> easyConst; // value of 4 or fewer
     ArrayList<String> hardConst; // value of 5 or higher
+    String[] sortWords;
+    BufferedReader cleanReader;
+    Map<String, Integer> cleanWords;
+    Trie trie;
+    enum TYPE {
+        hard_const, easy_const, vowel
+    }
 
-    public Group3Player() {
+    public Group3Player() throws FileNotFoundException {
         playerCounts = new HashMap<>();
         absoluteCounts = new HashMap<>();
         totalPlayed = 0;
         vowels = new ArrayList<>(Arrays.asList("A", "E", "I", "O", "U"));
-        easyConst = new ArrayList<>(Arrays.asList(
-                "B", "C", "D", "F", "G", "H", "L", "M", "N", "P", "R", "S", "T", "V", "W", "Y"
-        ));
+        easyConst = new ArrayList<>(Arrays.asList("B", "C", "D", "F", "G", "H", "L", "M", "N", "P", "R", "S", "T", "V", "W", "Y"));
         hardConst = new ArrayList<>(Arrays.asList("J", "K", "Q", "X", "Z"));
 
+        cleanWords = new HashMap<>();
+        cleanReader = new BufferedReader(new FileReader("C:\\Users\\alice\\Documents\\codeProjects1\\su24-words-local\\files\\cleaned.txt"));
+        trie = new Trie();
 
     }
 
-    /**
-     * Calculates the probability of a letter coming up in the next round
-     * @param letter the letter that you want to investigate
-     * @return the probability of that word occurring in the next round, expressed as a double.
-     */
-    private double probability(Letter letter) {
+    protected void initializeSort() {
+        String line = null;
+        ArrayList<String> wtmp = new ArrayList<>(55000);
+        try {
+            BufferedReader r = new BufferedReader(new FileReader("files/cleaned.txt"));
+            while (null != (line = r.readLine())) {
+                String newline = new String(line.trim());
+                newline = newline.replaceAll("\\d+", "");
+                wtmp.add(new String(line.trim()));
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "An error occurred.", e);
+        }
+        sortWords = wtmp.toArray(new String[0]);
+    }
+    @Override
+    public void startNewRound(SecretState secretstate){
+        totalPlayed = 0;
+        myLetters.clear(); // clear the letters that I have
+        // this puts the secret letters into the currentLetters List
+        myLetters.addAll(secretstate.getSecretLetters().stream().map(Letter::getCharacter).toList());
 
-        int allRemaining = 98 - totalPlayed;
-        int thisRemaining = ScrabbleValues.getLetterFrequency(letter.getCharacter()) - getCount(letter);
-
-        return thisRemaining/allRemaining;
+        playerLetters.clear(); // clear the letters that all the players have
+        for (int i = 0; i < numPlayers; i++) {
+            playerLetters.add(new LinkedList<Character>()); // initialize each player's list of letters
+        }
+        /*
+        Note that although the letters that I have will be in the playerLetters List, the playerLetters
+        List doesn't include my secret letters.
+         */
     }
 
-    /**
-     * Keeps track of the letters held by each player on the board, excluding hidden letters.
-     * Note that this is intended to be called each round, to keep a running tally of letters.
-     * @param letter the letter that you want to record
-     * @param ownerID the owner of that letter
-     */
+    @Override
+    public void startNewGame(int playerID, int numPlayers) {
+        myID = playerID; // store my ID
+        initializeSort();
+
+        initializeWordlist(); // read the file containing all the words
+
+        this.numPlayers = numPlayers; // so we know how many players are in the game
+    }
+
     private void recordLetter(Letter letter, int ownerID) {
 
         //check data
@@ -67,41 +102,25 @@ public class Group3Player extends Player {
 
     }
 
-    /**
-     * Returns the num letters of this type held by a SPECIFIC player, excluding hidden letters.
-     * Note that this does not include hidden letters.
-     * @param playerID the player that you would like to see the hand for
-     * @return a map representing the num letters of each type held by this player.
-     * returns 0 if this record cannot be found.
-     */
-    private int getCount(int playerID, Letter letter) {
+    public void buildWordMap() throws IOException {
 
-        //check data
-        if (!playerCounts.containsKey(playerID) || !playerCounts.get(playerID).containsKey(letter)) return 0;
-        return playerCounts.get(playerID).get(letter);
+        //populate the cleanWords data
+       String incoming = null;
+        while ((incoming = cleanReader.readLine()) != null) {
+            String[] line = incoming.split(",");
+            cleanWords.put(line[1], getWordScore(line[1]));
+        }
+
     }
 
-    /**
-     * Returns the num letters of this type held by ANY player, excluding hidden letters.
-     * @param letter the letter that you wish to return a count for
-     * @return  the number of instances of that letter that are confirmed to be 'in play' (i.e. in our hand, or the hand of another player)
-     * returns 0 if this record cannot be found.
-     */
-    private int getCount(Letter letter) {
-        if (!absoluteCounts.containsKey(letter)) return 0;
-        return absoluteCounts.get(letter);
+    public void buildWordTrie() {
+        for (Iterator<String> it = cleanWords.keySet().stream().iterator(); it.hasNext();) trie.insert(it.next().toLowerCase());
     }
 
-    /**
-     * returns the details of the letters held by a specific player
-     * @param playerID the player that is holding the letters
-     * @return a map in the form <letter, num_instances_held_by_player>
-     */
-    private Map<Letter, Integer> getLetters(int playerID) {
-        return playerCounts.get(playerID);
+    public void visualiseTree() {
+        trie.visualize();
     }
 
-    // helper method that checks if a potential word contains all the letters that we currently have
     public static boolean containsAllLetters(String str, List<Character> letters) {
         for (char letter : letters) {
             if (str.indexOf(letter) == -1) {
@@ -111,97 +130,86 @@ public class Group3Player extends Player {
         return true;
     }
 
-    // THIS checks if we have a valid word of 7 or more letters. at this point, stop betting.
-    // POTENTIAL IMPROVEMENT: if new letter adds to value of our existing word... than can bid.
-    public int sevens(){
-        return 0;
-    }
-
-    //if amount of letters  is over 4 => following bid strategy
-    // THIS: if we have 4 or more letters
-    //count all the 7 (or more) letter words CONTAINING the letters that we already have
-    //then, for all those long words ^, count how many have the new letter
-    // then, bid appropriately based on how much that letter will help (probability of it being in a longer water)
-
-    // TO DO: test these bids and thesholds => mitali just did it randomly
-    // POSSIBLE LIMITATION: can all but one of these letters work?
-    public int fours(Letter bidLetter){
-        int words = 0;
-        int words_with_new_let = 0;
-        for (Word w : wordlist) {
-            if (w.length >= 7){
-
-                if(containsAllLetters(w.toString(), myLetters)){
-                    words ++;
-                    if(w.toString().contains(String.valueOf(bidLetter.getCharacter()))){
-                        words_with_new_let ++;
-                    }
-
-                }
-            }
-        }
-        float prob = words_with_new_let / words;
-
-        if (prob > 0.7){
-            return 8;
-        }
-        if (prob > 0.5){
-            return 6;
-        }
-        if (prob > 0.25){
-            return 2;
-        }
-        return 0;
-    }
-
-    // if less than 4 letters aquired, do following bid strategy:
-    // if we do not have 4 letters, bid on letterswith following strat:
-    // we wnt vowels and easy constinents
-    //if we cant get them, make the other teams pay for them!
-    public int otherBid(Letter bidLetter){
-        if (vowels.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 6;
-        }
-        if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 5;
-        }
-        if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))){
-            return 4;
-        }
-        return 0;
+    public static List<Character> sorter( List<Character> letters){
+        List<Character> sortedList = new ArrayList<>(letters);
+        Collections.sort(sortedList);
+        return sortedList;
     }
 
 
-    /**
-     * @param bidLetter the Letter currently up for bidding on
-     * @param playerBidList an unmodifiable list of previous bids from this game
-     * @param totalRounds the total number of rounds in the game, which is different from the current round
-     * @param playerList list of all player names
-     * @param secretstate set of data that is stored unique to each player (their score and secret letters)
-     * @param playerID the ID of the player being asked to bid (can ignore)
-     * @return
-     */
     @Override
     public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
 
-        //record the new information from the previous round ONLY (rest should already be cached)
-        if (playerBidList.size() > 0) recordLetter(playerBidList.getLast().getTargetLetter(), playerBidList.getLast().getWinnerID());
+        //bank any new info about bids
+        if (playerBidList.size() > 0) recordLetter(playerBidList.get(playerBidList.size()-1).getTargetLetter(), playerBidList.get(playerBidList.size()-1).getWinnerID());
 
+        //set up vars
+        String currBest = returnWord();
+        int roundsLeft = numPlayers * 8 - totalPlayed;
 
-        //if we have a valid word of length 7+ => see sevens for behavior
-        String word = returnWord();
-        if (word.length() >= 7){
-            return sevens();
-        }
+        //case 1: first 3 rounds [FIXED LOW BID]
+        if(totalPlayed < 3) return 3;
 
-        // see explanation in fours() method for bid behavior when 4 or more letters
-        if(myLetters.size() >= 4){
-            return fours(bidLetter);
-        }
+        //case 2: longer than 7 [ONLY BID ON AN IMMEDIATE WIN]
+        if (currBest.length() >= 7) if (immediateWinGuaranteed(bidLetter)) return 5;
 
+        //case 3: long words, and time to make them [BID ACCORDING TO USE VALUE]
+        else if((myLetters.size() >= 4) && stillTime(roundsLeft)) return sizeBid(assessUse(bidLetter));
 
-        // if less than 4 letters aquired, do otherBid strategy
-        return otherBid(bidLetter);
+        //case 4: limited choice [MAKE OTHER TEAMS PAY]
+        else if (vowels.contains(String.valueOf(bidLetter.getCharacter()))) return 6;
+        else if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))) return 6;
+        else if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))) return 4;
+
+        return 0;
 
     }
+
+
+    public boolean immediateWinGuaranteed(Letter bidLetter) {
+
+        int c_count = 0;
+        for(String w: sortWords){
+            if((w.length() == 7) && (containsAllLetters(w, myLetters))){
+                if(w.contains(String.valueOf(bidLetter.getCharacter()))){
+                    c_count ++;
+                }
+            }
+            if (c_count >=1){
+                return true;
+            }
+        }
+        return false;
+
+    }
+
+    public boolean stillTime(int roundsLeft) {
+        return (1.5*(7-myLetters.size()) < roundsLeft);
+
+    }
+
+    public int sizeBid(double useValue) {
+
+        if (useValue > 0.9) return 10;
+        else if (useValue > 0.7) return 8;
+        else if (useValue > 0.5) return 5;
+        else return 1;
+
+    }
+
+    public double assessUse(Letter bidLetter) {
+        int w_count = 0;
+        int c_count = 0;
+        for(String w: sortWords){
+            if((w.length() >= 7) && (containsAllLetters(w, myLetters))){
+                w_count ++;
+                if(w.contains(String.valueOf(bidLetter.getCharacter()))){
+                    c_count ++;
+                }
+            }
+        }
+        return c_count/w_count;
+    }
+
+
 }
