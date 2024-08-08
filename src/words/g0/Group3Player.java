@@ -5,6 +5,7 @@ import words.core.*;
 import java.io.*;
 import java.util.*;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static words.core.ScrabbleValues.*;
 
@@ -18,7 +19,7 @@ public class Group3Player extends Player {
     int[] absoluteCounts;
     int[] remainingCounts;
     int[] values;
-    int[] probabilities;
+    float[] probabilities;
 
     //track my progress
     String currentBest;
@@ -32,6 +33,8 @@ public class Group3Player extends Player {
     String[] sortWords;                                            //sorted list of words from main dictionary
     String[] highValueWords;
 
+    private Logger logger = Logger.getLogger(GameEngine.class.getName());
+
 
     public Group3Player() {
 
@@ -42,16 +45,16 @@ public class Group3Player extends Player {
         cashRemaining = 100;
 
         initialiseRemaining();
-        initialiseValues();
+        updateProbabilities();
 
         currentBest = "";
-        currentTarget = "aeimnorsstty";
+        currentTarget = "";
 
     }
 
 
     //for use in initialisation
-    protected void initializeSort() {
+    protected void initializeSortWords() {
         String line;
         ArrayList<String> wtmp = new ArrayList<>(55000);
         try {
@@ -66,14 +69,29 @@ public class Group3Player extends Player {
         }
         sortWords = wtmp.toArray(new String[0]);
     }
+    protected void initializeHighValueDictionary() {
+        String line;
+        ArrayList<String> wtmp = new ArrayList<>(55000);
+        try {
+            BufferedReader r = new BufferedReader(new FileReader("files/highValueDictionary.txt"));
+            while (null != (line = r.readLine())) {
+                String newline = new String(line.trim());
+                newline = newline.replaceAll("\\d+", "");
+                wtmp.add(new String(line.trim()));
+            }
+        } catch (Exception e) {
+            logger.log(Level.SEVERE, "An error occurred.", e);
+        }
+        highValueWords = wtmp.toArray(new String[0]);
+    }
     private void initialiseRemaining() {
         remainingCounts = new int[26];
-        for (int i = 0; i < 26; i++) remainingCounts[i] = getLetterFrequency((char) (toLetter(i)));
+        for (int i = 0; i < 26; i++) remainingCounts[i] = getLetterFrequency(toUpperCase(toLetter(i)));
     }
-    private void initialiseValues() {
+    public void initialiseLetterValues() {
         values = new int[26];
         for (int i = 0; i < 26; i++) {
-            Character character = toLetter(i);
+            Character character = toUpperCase(toLetter(i));
             values[i] = letterScore(character);
         }
     }
@@ -87,8 +105,8 @@ public class Group3Player extends Player {
         if (ownerID < 0) return;       //case no one won this bid
 
         //if here, letter is valid
-        Character character = letter.getCharacter();
-        int index = toIndex(character);
+        Character character = toUpperCase(letter.getCharacter());
+        int index = toIndex(toLowerCase(character));
 
         // Add to player tracking
         if (!playerCounts.containsKey(ownerID)) playerCounts.put(ownerID, new HashMap<>());      //case never seen this player win
@@ -98,6 +116,7 @@ public class Group3Player extends Player {
         //Add to letter tracking
         absoluteCounts[index] = absoluteCounts[index] + 1;
         remainingCounts[index] = remainingCounts[index] - 1;
+
         updateProbabilities();
         totalAuctioned++;
 
@@ -105,10 +124,10 @@ public class Group3Player extends Player {
         currentBest = returnWord();
 
     }
-    private void updateProbabilities() {
+    public void updateProbabilities() {
 
         //set up vars
-        float[] probabilities = new float[26];
+        probabilities = new float[26];
         int totalRemaining = 26 - totalAuctioned;
 
         //populate new array with probabilities
@@ -118,6 +137,21 @@ public class Group3Player extends Player {
     private void updateCash(int pointsSpent) {
 
         cashRemaining -= pointsSpent;
+    }
+    public void updateTarget() {
+
+        if (!viableWord(currentTarget)) currentTarget = "";
+
+        double highestValue = getWordScore(currentTarget.toUpperCase());
+
+        for (int i = 0; i < highValueWords.length; i++) {
+            double value = calculateExpectation(highValueWords[i]);
+            if (value > highestValue) {
+                highestValue = value;
+                currentTarget = highValueWords[i];
+            }
+        }
+
     }
 
 
@@ -130,6 +164,19 @@ public class Group3Player extends Player {
         float temp = 0;
         for (int i = 0; i < probabilities.length; i++) temp += calculateExpectation(probabilities[i], values[i]);
         return temp;
+    }
+    public double calculateExpectation(String word) {
+
+        updateProbabilities();
+
+        float temp = 0;
+        for (int i = 0; i < word.length(); i++) {
+            char character = word.charAt(i);
+            int index = toIndex(character);
+            temp += calculateExpectation(probabilities[index], values[index]);
+        }
+        return temp;
+
     }
     public int valueLetter(Character character) {
 
@@ -197,15 +244,32 @@ public class Group3Player extends Player {
     public static Character toLowerCase(Character character) {
         return String.valueOf(character).toLowerCase().charAt(0);
     }
+    public static Character toUpperCase(Character character) {
+        return String.valueOf(character).toUpperCase().charAt(0);
+    }
+    public boolean viableWord(String word) {
+
+        int[] letters = new int[26];
+        for (int i = 0; i < word.length(); i++) {
+            letters[toIndex(word.charAt(i))] = letters[toIndex(word.charAt(i))]+1;
+        }
+
+        for (int i = 0; i < letters.length; i++) {
+            if (letters[i] > remainingCounts[i]) return false;
+        }
+        return true;
+    }
 
 
     //override functions
     @Override
     public void startNewGame(int playerID, int numPlayers) {
         myID = playerID; // store my ID
-        initializeSort();
+        initializeSortWords();
+        initializeHighValueDictionary();
         initializeWordlist(); // read the file containing all the words
         this.numPlayers = numPlayers; // so we know how many players are in the game
+        initialiseLetterValues();
     }
     @Override
     public void startNewRound(SecretState secretstate){
@@ -233,6 +297,10 @@ public class Group3Player extends Player {
 
         //update tracking [LETTER COUNTS, PROBABILITIES, BEST WORDS AVAILABLE]
         if (!playerBidList.isEmpty()) updateTrackers(playerBidList.get(playerBidList.size()-1).getTargetLetter(), playerBidList.get(playerBidList.size()-1).getWinnerID());
+
+        //update target word, based on the tracking
+        updateTarget();
+        logger.info("Aiming for: " + currentTarget);
 
         //case 1: if we haven't yet achieved 100 [PRIORITISE FLEXIBILITY]
         if (cashRemaining + getWordScore(currentBest) <= 101) proposal = valueLetter(bidLetter.getCharacter());
