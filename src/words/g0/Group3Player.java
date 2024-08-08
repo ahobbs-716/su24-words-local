@@ -6,38 +6,27 @@ import java.io.*;
 import java.util.*;
 import java.util.logging.Level;
 
-import static words.core.ScrabbleValues.getWordScore;
-
 
 public class Group3Player extends Player {
+
+    //to enable tracking
     Map<Integer, Map<Letter, Integer>> playerCounts;             //format: Map <PlayerID <letter_type, num_letters_of_type>
     Map<Letter, Integer> absoluteCounts;                         //format: Map <Letter, num_instances_on_board>
-    int totalPlayed;
-    ArrayList<String> vowels;
-    ArrayList<String> easyConst; // value of 4 or fewer
-    ArrayList<String> hardConst; // value of 5 or higher
-    String[] sortWords;
-    BufferedReader cleanReader;
-    Map<String, Integer> cleanWords;
-    Trie trie;
-    enum TYPE {
-        hard_const, easy_const, vowel
-    }
+    int totalPlayed;                                             //total letters that have been purchased by any player in the game. Does not include secret letters/
+    String[] sortWords;                                         //sorted list of words from main dictionary
+    String[] highValueWords;
+
 
     public Group3Player() throws FileNotFoundException {
+
+        //to enable tracking
         playerCounts = new HashMap<>();
         absoluteCounts = new HashMap<>();
         totalPlayed = 0;
-        vowels = new ArrayList<>(Arrays.asList("A", "E", "I", "O", "U"));
-        easyConst = new ArrayList<>(Arrays.asList("B", "C", "D", "F", "G", "H", "L", "M", "N", "P", "R", "S", "T", "V", "W", "Y"));
-        hardConst = new ArrayList<>(Arrays.asList("J", "K", "Q", "X", "Z"));
-
-        cleanWords = new HashMap<>();
-        cleanReader = new BufferedReader(new FileReader("C:\\Users\\alice\\Documents\\codeProjects1\\su24-words-local\\files\\cleaned.txt"));
-        trie = new Trie();
 
     }
 
+    //for use in initialisation
     protected void initializeSort() {
         String line = null;
         ArrayList<String> wtmp = new ArrayList<>(55000);
@@ -53,33 +42,8 @@ public class Group3Player extends Player {
         }
         sortWords = wtmp.toArray(new String[0]);
     }
-    @Override
-    public void startNewRound(SecretState secretstate){
-        totalPlayed = 0;
-        myLetters.clear(); // clear the letters that I have
-        // this puts the secret letters into the currentLetters List
-        myLetters.addAll(secretstate.getSecretLetters().stream().map(Letter::getCharacter).toList());
 
-        playerLetters.clear(); // clear the letters that all the players have
-        for (int i = 0; i < numPlayers; i++) {
-            playerLetters.add(new LinkedList<Character>()); // initialize each player's list of letters
-        }
-        /*
-        Note that although the letters that I have will be in the playerLetters List, the playerLetters
-        List doesn't include my secret letters.
-         */
-    }
-
-    @Override
-    public void startNewGame(int playerID, int numPlayers) {
-        myID = playerID; // store my ID
-        initializeSort();
-
-        initializeWordlist(); // read the file containing all the words
-
-        this.numPlayers = numPlayers; // so we know how many players are in the game
-    }
-
+    //for use in player tracking
     private void recordLetter(Letter letter, int ownerID) {
 
         //check data
@@ -102,25 +66,18 @@ public class Group3Player extends Player {
 
     }
 
-    public void buildWordMap() throws IOException {
+    //probable best move
+    public float calculateExpectation(float probability, float value) {
+        return probability * value;
+    }
+    public double calculateExpectation(float[] probabilities, float[] values) {
 
-        //populate the cleanWords data
-       String incoming = null;
-        while ((incoming = cleanReader.readLine()) != null) {
-            String[] line = incoming.split(",");
-            cleanWords.put(line[1], getWordScore(line[1]));
-        }
-
+        float temp = 0;
+        for (int i = 0; i < probabilities.length; i++) temp += calculateExpectation(probabilities[i], values[i]);
+        return temp;
     }
 
-    public void buildWordTrie() {
-        for (Iterator<String> it = cleanWords.keySet().stream().iterator(); it.hasNext();) trie.insert(it.next().toLowerCase());
-    }
-
-    public void visualiseTree() {
-        trie.visualize();
-    }
-
+    //next best move
     public static boolean containsAllLetters(String str, List<Character> letters) {
         for (char letter : letters) {
             if (str.indexOf(letter) == -1) {
@@ -129,43 +86,6 @@ public class Group3Player extends Player {
         }
         return true;
     }
-
-    public static List<Character> sorter( List<Character> letters){
-        List<Character> sortedList = new ArrayList<>(letters);
-        Collections.sort(sortedList);
-        return sortedList;
-    }
-
-
-    @Override
-    public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
-
-        //bank any new info about bids
-        if (playerBidList.size() > 0) recordLetter(playerBidList.get(playerBidList.size()-1).getTargetLetter(), playerBidList.get(playerBidList.size()-1).getWinnerID());
-
-        //set up vars
-        String currBest = returnWord();
-        int roundsLeft = numPlayers * 8 - totalPlayed;
-
-        //case 1: first 3 rounds [FIXED LOW BID]
-        if(totalPlayed < 3) return 3;
-
-        //case 2: longer than 7 [ONLY BID ON AN IMMEDIATE WIN]
-        if (currBest.length() >= 7) if (immediateWinGuaranteed(bidLetter)) return 5;
-
-        //case 3: long words, and time to make them [BID ACCORDING TO USE VALUE]
-        else if((myLetters.size() >= 4) && stillTime(roundsLeft)) return sizeBid(assessUse(bidLetter));
-
-        //case 4: limited choice [MAKE OTHER TEAMS PAY]
-        else if (vowels.contains(String.valueOf(bidLetter.getCharacter()))) return 6;
-        else if (easyConst.contains(String.valueOf(bidLetter.getCharacter()))) return 6;
-        else if (hardConst.contains(String.valueOf(bidLetter.getCharacter()))) return 4;
-
-        return 0;
-
-    }
-
-
     public boolean immediateWinGuaranteed(Letter bidLetter) {
 
         int c_count = 0;
@@ -183,32 +103,72 @@ public class Group3Player extends Player {
 
     }
 
-    public boolean stillTime(int roundsLeft) {
-        return (1.5*(7-myLetters.size()) < roundsLeft);
+    //generic helper functions
+    public static List<Character> sorter( List<Character> letters){
+        List<Character> sortedList = new ArrayList<>(letters);
+        Collections.sort(sortedList);
+        return sortedList;
+    }
+    public static int toNumber(Character letter) {
+
+        letter = String.valueOf(letter).toLowerCase().charAt(0);
+        return letter - 'a';
 
     }
-
-    public int sizeBid(double useValue) {
-
-        if (useValue > 0.9) return 10;
-        else if (useValue > 0.7) return 8;
-        else if (useValue > 0.5) return 5;
-        else return 1;
-
+    public static Character toLetter(int number) {
+        return (char) (number + 'a');
     }
+    
+    //override functions
+    @Override
+    public void startNewGame(int playerID, int numPlayers) {
+        myID = playerID; // store my ID
+        initializeSort();
+        initializeWordlist(); // read the file containing all the words
+        this.numPlayers = numPlayers; // so we know how many players are in the game
+    }
+    @Override
+    public void startNewRound(SecretState secretstate){
+        totalPlayed = 0;
+        myLetters.clear(); // clear the letters that I have
+        // this puts the secret letters into the currentLetters List
+        myLetters.addAll(secretstate.getSecretLetters().stream().map(Letter::getCharacter).toList());
 
-    public double assessUse(Letter bidLetter) {
-        int w_count = 0;
-        int c_count = 0;
-        for(String w: sortWords){
-            if((w.length() >= 7) && (containsAllLetters(w, myLetters))){
-                w_count ++;
-                if(w.contains(String.valueOf(bidLetter.getCharacter()))){
-                    c_count ++;
-                }
-            }
+        playerLetters.clear(); // clear the letters that all the players have
+        for (int i = 0; i < numPlayers; i++) {
+            playerLetters.add(new LinkedList<Character>()); // initialize each player's list of letters
         }
-        return c_count/w_count;
+        /*
+        Note that although the letters that I have will be in the playerLetters List, the playerLetters
+        List doesn't include my secret letters.
+         */
+    }
+
+    //main function
+    @Override
+    public int bid(Letter bidLetter, List<PlayerBids> playerBidList, int totalRounds, ArrayList<String> playerList, SecretState secretstate, int playerID) {
+
+        //bank any new info about bids
+        if (playerBidList.size() > 0) recordLetter(playerBidList.get(playerBidList.size()-1).getTargetLetter(), playerBidList.get(playerBidList.size()-1).getWinnerID());
+
+        //set up vars
+        String currBest = returnWord();
+        int roundsLeft = numPlayers * 8 - totalPlayed;
+
+        //case 1: first 3 rounds [FIXED LOW BID]
+        if(totalPlayed < 3) return 3;
+
+        //case 2: longer than 7 [ONLY BID ON AN IMMEDIATE WIN]
+        if (currBest.length() >= 7) if (immediateWinGuaranteed(bidLetter)) return 5;
+
+        //case 3: words shorter than 7
+
+        //for each word that is potentially available...
+        //calculate the expectation of making that word
+        //apply a premium for words that are either highly flexible or high scoring
+
+        return 0;
+
     }
 
 
