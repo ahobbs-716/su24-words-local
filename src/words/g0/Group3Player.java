@@ -141,7 +141,7 @@ public class Group3Player extends Player {
         // IMPROVEMENT made: if new letter adds to value of our existing word... than can bid
             // CHANGE:now goes into this position when it exceeds 100
 
-    } else if (cashRemaining + getWordScore(returnWord()) <= 101){
+    } else if (cashRemaining + getWordScore(returnWord()) > 101){
             int c_count = 0;
             for(String w: sortWords){
                 if((w.length() == 7) && (containsAllLetters(w, myLetters))){
