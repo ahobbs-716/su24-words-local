@@ -116,10 +116,27 @@ public class Group3Player extends Player {
         return true;
     }
 
-    public static List<Character> sorter( List<Character> letters){
-        List<Character> sortedList = new ArrayList<>(letters);
-        Collections.sort(sortedList);
-        return sortedList;
+    // if a word contains all MyLetters and bid letter... is it double counting bid letter (if its already in my letters)
+    public static boolean contributes(String w, List<Character> myLetters, String bidLetter){
+        if(!myLetters.contains(bidLetter.charAt(0))){
+            return true;
+        }
+        int char_count = 0;
+        for (char c : myLetters) {
+            if (c == bidLetter.charAt(0)) {
+                char_count++;
+            }
+        }
+        int w_count = 0;
+        for (int i = 0; i < w.length(); i++) {
+            if (w.charAt(i) == bidLetter.charAt(0)) {
+                w_count++;
+            }
+        }
+
+        return w_count > char_count;
+
+
     }
 
 
@@ -133,15 +150,19 @@ public class Group3Player extends Player {
         int proposal = 0;
         int roundsLeft = numPlayers * 8 - totalPlayed;
 
-        if (totalPlayed < 3) {
+        if (totalPlayed < 2) {
             proposal = 3;
 
 
-        // THIS checks if we have a valid word of 7 or more letters. at this point, stop betting.
-        // IMPROVEMENT made: if new letter adds to value of our existing word... than can bid
+            // THIS checks if we have a valid word of 7 or more letters. at this point, stop betting.
+            // IMPROVEMENT made: if new letter adds to value of our existing word... than can bid
             // CHANGE:now goes into this position when it exceeds 100
 
-    } else if (cashRemaining + getWordScore(returnWord()) > 101){
+        }
+        else if (word.length() >= 7){
+            proposal = 2;
+        }
+        else if (cashRemaining + getWordScore(returnWord()) > 101){
             int c_count = 0;
             for(String w: sortWords){
                 if((w.length() == 7) && (containsAllLetters(w, myLetters))){
@@ -180,7 +201,10 @@ public class Group3Player extends Player {
                 if((w.length() >= 7) && (containsAllLetters(w, myLetters))){
                     w_count ++;
                     if(w.contains(String.valueOf(bidLetter.getCharacter()))){
-                        c_count ++;
+                        if(contributes(w, myLetters, String.valueOf(bidLetter.getCharacter()))){
+                            c_count ++;
+                        }
+
                     }
                 }
 
@@ -188,13 +212,16 @@ public class Group3Player extends Player {
             if ((double) c_count / w_count > 0.9){
                 proposal = 10;
             }
-            if ((double) c_count / w_count > 0.7){
+            else if ((double) c_count / w_count > 0.7){
                 proposal = 8;
             }
-            if ((double) c_count / w_count > 0.5){
+            else if ((double) c_count / w_count > 0.5){
                 proposal = 5;
             }
-            proposal = 1;
+            else {
+                proposal = 1;
+            }
+
 
         }
 
