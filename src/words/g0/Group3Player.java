@@ -162,16 +162,18 @@ public class Group3Player extends Player {
         else if (word.length() >= 7){
             proposal = 2;
         }
-        else if (cashRemaining + getWordScore(returnWord()) > 101){
+        else if (cashRemaining + getWordScore(returnWord()) > 101) {
             int c_count = 0;
-            for(String w: sortWords){
-                if((w.length() == 7) && (containsAllLetters(w, myLetters))){
-                    if(w.contains(String.valueOf(bidLetter.getCharacter()))){
-                        c_count ++;
+            for (String w : sortWords) {
+                if ((w.length() == 7) && (containsAllLetters(w, myLetters))) {
+                    if (w.contains(String.valueOf(bidLetter.getCharacter()))) {
+                        if (contributes(w, myLetters, String.valueOf(bidLetter.getCharacter()))) {
+                            c_count++;
+                        }
                     }
-                }
-                if (c_count >=1){
-                    proposal = 5;
+                    if (c_count >= 1) {
+                        proposal = 5;
+                    }
                 }
             }
         }
